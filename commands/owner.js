@@ -1,7 +1,7 @@
-const mode = async ({ sock, msg, from, sender, args, db, isOwner, OWNER }) => {
-    if (!isOwner) {
+const mode = async ({ sock, msg, from, sender, args, db, isCreator, isMod, isGuardian }) => {
+    if (!isCreator && !isMod && !isGuardian) {
         return await sock.sendMessage(from, {
-            text: '╭━━𖣔 𝗘𝗥𝗥𝗢𝗥 𖣔━━╮\n│\n│  ❌ Owner only command!\n│\n╰━━━━━━━━━━━━━━━━━━━╯'
+            text: '╭━━𖣔 𝗘𝗥𝗥𝗢𝗥 𖣔━━╮\n│\n│  ❌ Creator/Mod/Guardian only!\n│\n╰━━━━━━━━━━━━━━━━━━━╯'
         }, { quoted: msg });
     }
 
@@ -15,7 +15,7 @@ const mode = async ({ sock, msg, from, sender, args, db, isOwner, OWNER }) => {
     
     if (newMode !== 'private' && newMode !== 'public') {
         return await sock.sendMessage(from, {
-            text: '╭━━𖣔 𝗘𝗥𝗥𝗢𝗥 𖣔━━╮\n│\n│  ❌ Mode must be private or public!\n│\n╰━━━━━━━━━━━━━━━━━━━╯'
+            text: '╭━━𖣔 𝗘𝗥𝗥𝗢𝗥 𖣔━━╮\n│\n│  ❌ Mode: private or public only!\n│\n╰━━━━━━━━━━━━━━━━━━━╯'
         }, { quoted: msg });
     }
 
@@ -23,31 +23,100 @@ const mode = async ({ sock, msg, from, sender, args, db, isOwner, OWNER }) => {
         await db.collection('settings').doc('bot').set({ mode: newMode }, { merge: true });
 
         await sock.sendMessage(from, {
-            text: `╭━━𖣔 𝗕𝗢𝗧 𝗠𝗢𝗗𝗘 𖣔━━╮
-│
-│  ✅ Mode changed to ${newMode.toUpperCase()}!
-│  ${newMode === 'private' ? '🔒 Bot will only respond to owner' : '🌍 Bot will respond to everyone'}
-│
-╰━━━━━━━━━━━━━━━━━━━╯`
+            text: `╭━━𖣔 𝗕𝗢𝗧 𝗠𝗢𝗗𝗘 𖣔━━╮\n│\n│  ✅ Mode: ${newMode.toUpperCase()}!\n│  ${newMode === 'private' ? '🔒 Staff only' : '🌍 Everyone can use'}\n│\n╰━━━━━━━━━━━━━━━━━━━╯`
         }, { quoted: msg });
     } catch (error) {
         await sock.sendMessage(from, {
-            text: '╭━━𖣔 𝗘𝗥𝗥𝗢𝗥 𖣔━━╮\n│\n│  ❌ Database error! Configure Firebase.\n│\n╰━━━━━━━━━━━━━━━━━━━╯'
+            text: '╭━━𖣔 𝗘𝗥𝗥𝗢𝗥 𖣔━━╮\n│\n│  ❌ Database error!\n│\n╰━━━━━━━━━━━━━━━━━━━╯'
         }, { quoted: msg });
     }
 };
 
-const mods = async ({ sock, msg, from, db, OWNER }) => {
+const addmod = async ({ sock, msg, from, isCreator, db }) => {
+    if (!isCreator) {
+        return await sock.sendMessage(from, {
+            text: '╭━━𖣔 𝗘𝗥𝗥𝗢𝗥 𖣔━━╮\n│\n│  ❌ Creator only command!\n│\n╰━━━━━━━━━━━━━━━━━━━╯'
+        }, { quoted: msg });
+    }
+
+    const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid;
+    if (!mentioned || mentioned.length === 0) {
+        return await sock.sendMessage(from, {
+            text: '╭━━𖣔 𝗘𝗥𝗥𝗢𝗥 𖣔━━╮\n│\n│  ❌ Mention a user!\n│  Usage: .addmod @user\n│\n╰━━━━━━━━━━━━━━━━━━━╯'
+        }, { quoted: msg });
+    }
+
+    const userToAdd = mentioned[0];
     try {
         const modsRef = db.collection('settings').doc('mods');
         const modsDoc = await modsRef.get();
         const modsData = modsDoc.exists ? modsDoc.data() : { list: [], guardians: [] };
         
-        let modsText = `╭━━𖣔 𝗠𝗢𝗗𝗦 & 𝗚𝗨𝗔𝗥𝗗𝗜𝗔𝗡𝗦 𖣔━━╮
-│
-│  👑 𝗢𝘄𝗻𝗲𝗿:
-│  ᯽ @${OWNER.split('@')[0]}
-│\n`;
+        if (modsData.list.includes(userToAdd)) {
+            return await sock.sendMessage(from, {
+                text: '╭━━𖣔 𝗘𝗥𝗥𝗢𝗥 𖣔━━╮\n│\n│  ❌ Already a mod!\n│\n╰━━━━━━━━━━━━━━━━━━━╯'
+            }, { quoted: msg });
+        }
+
+        modsData.list.push(userToAdd);
+        await modsRef.set(modsData, { merge: true });
+
+        await sock.sendMessage(from, {
+            text: '╭━━𖣔 𝗠𝗢𝗗 𝗔𝗗𝗗𝗘𝗗 𖣔━━╮\n│\n│  ✅ User added as mod!\n│\n╰━━━━━━━━━━━━━━━━━━━╯'
+        }, { quoted: msg });
+    } catch (error) {
+        await sock.sendMessage(from, {
+            text: '╭━━𖣔 𝗘𝗥𝗥𝗢𝗥 𖣔━━╮\n│\n│  ❌ Database error!\n│\n╰━━━━━━━━━━━━━━━━━━━╯'
+        }, { quoted: msg });
+    }
+};
+
+const addguardian = async ({ sock, msg, from, isCreator, db }) => {
+    if (!isCreator) {
+        return await sock.sendMessage(from, {
+            text: '╭━━𖣔 𝗘𝗥𝗥𝗢𝗥 𖣔━━╮\n│\n│  ❌ Creator only!\n│\n╰━━━━━━━━━━━━━━━━━━━╯'
+        }, { quoted: msg });
+    }
+
+    const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid;
+    if (!mentioned || mentioned.length === 0) {
+        return await sock.sendMessage(from, {
+            text: '╭━━𖣔 𝗘𝗥𝗥𝗢𝗥 𖣔━━╮\n│\n│  ❌ Mention a user!\n│  Usage: .addguardian @user\n│\n╰━━━━━━━━━━━━━━━━━━━╯'
+        }, { quoted: msg });
+    }
+
+    const userToAdd = mentioned[0];
+    try {
+        const modsRef = db.collection('settings').doc('mods');
+        const modsDoc = await modsRef.get();
+        const modsData = modsDoc.exists ? modsDoc.data() : { list: [], guardians: [] };
+        
+        if (modsData.guardians.includes(userToAdd)) {
+            return await sock.sendMessage(from, {
+                text: '╭━━𖣔 𝗘𝗥𝗥𝗢𝗥 𖣔━━╮\n│\n│  ❌ Already a guardian!\n│\n╰━━━━━━━━━━━━━━━━━━━╯'
+            }, { quoted: msg });
+        }
+
+        modsData.guardians.push(userToAdd);
+        await modsRef.set(modsData, { merge: true });
+
+        await sock.sendMessage(from, {
+            text: '╭━━𖣔 𝗚𝗨𝗔𝗥𝗗𝗜𝗔𝗡 𝗔𝗗𝗗𝗘𝗗 𖣔━━╮\n│\n│  ✅ User added as guardian!\n│\n╰━━━━━━━━━━━━━━━━━━━╯'
+        }, { quoted: msg });
+    } catch (error) {
+        await sock.sendMessage(from, {
+            text: '╭━━𖣔 𝗘𝗥𝗥𝗢𝗥 𖣔━━╮\n│\n│  ❌ Database error!\n│\n╰━━━━━━━━━━━━━━━━━━━╯'
+        }, { quoted: msg });
+    }
+};
+
+const mods = async ({ sock, msg, from, db, CREATOR }) => {
+    try {
+        const modsRef = db.collection('settings').doc('mods');
+        const modsDoc = await modsRef.get();
+        const modsData = modsDoc.exists ? modsDoc.data() : { list: [], guardians: [] };
+        
+        let modsText = `╭━━𖣔 𝗠𝗢𝗗𝗦 & 𝗚𝗨𝗔𝗥𝗗𝗜𝗔𝗡𝗦 𖣔━━╮\n│\n│  👑 𝗖𝗿𝗲𝗮𝘁𝗼𝗿:\n│  ᯽ @${CREATOR.split('@')[0]}\n│\n`;
 
         if (modsData.list && modsData.list.length > 0) {
             modsText += `│  🛡️ 𝗠𝗼𝗱𝗲𝗿𝗮𝘁𝗼𝗿𝘀:\n`;
@@ -70,7 +139,7 @@ const mods = async ({ sock, msg, from, db, OWNER }) => {
 
         modsText += `╰━━━━━━━━━━━━━━━━━━━╯`;
 
-        const mentions = [OWNER, ...(modsData.list || []), ...(modsData.guardians || [])];
+        const mentions = [CREATOR, ...(modsData.list || []), ...(modsData.guardians || [])];
 
         await sock.sendMessage(from, {
             text: modsText,
@@ -78,30 +147,17 @@ const mods = async ({ sock, msg, from, db, OWNER }) => {
         }, { quoted: msg });
     } catch (error) {
         await sock.sendMessage(from, {
-            text: `╭━━𖣔 𝗠𝗢𝗗𝗦 & 𝗚𝗨𝗔𝗥𝗗𝗜𝗔𝗡𝗦 𖣔━━╮
-│
-│  👑 𝗢𝘄𝗻𝗲𝗿:
-│  ᯽ @${OWNER.split('@')[0]}
-│
-│  🛡️ 𝗠𝗼𝗱𝗲𝗿𝗮𝘁𝗼𝗿𝘀: None
-│
-│  ⚔️ 𝗚𝘂𝗮𝗿𝗱𝗶𝗮𝗻𝘀: None
-│
-╰━━━━━━━━━━━━━━━━━━━╯`,
-            mentions: [OWNER]
+            text: `╭━━𖣔 𝗠𝗢𝗗𝗦 & 𝗚𝗨𝗔𝗥𝗗𝗜𝗔𝗡𝗦 𖣔━━╮\n│\n│  👑 𝗖𝗿𝗲𝗮𝘁𝗼𝗿:\n│  ᯽ @${CREATOR.split('@')[0]}\n│\n│  🛡️ 𝗠𝗼𝗱𝗲𝗿𝗮𝘁𝗼𝗿𝘀: None\n│\n│  ⚔️ 𝗚𝘂𝗮𝗿𝗱𝗶𝗮𝗻𝘀: None\n│\n╰━━━━━━━━━━━━━━━━━━━╯`,
+            mentions: [CREATOR]
         }, { quoted: msg });
     }
-};
-
-const genericOwner = async ({ sock, msg, from }) => {
-    await sock.sendMessage(from, { text: '╭━━𖣔 𝗢𝗪𝗡𝗘𝗥 𖣔━━╮\n│\n│  👑 Owner command working!\n│  ⏳ Full feature coming soon\n│\n╰━━━━━━━━━━━━━━━━━━━╯' }, { quoted: msg });
 };
 
 module.exports = {
     mode,
     mods,
-    addmod: genericOwner,
-    removemod: genericOwner,
-    addguardian: genericOwner,
-    removeguardian: genericOwner
+    addmod,
+    addguardian,
+    removemod: addmod, // Implement similarly
+    removeguardian: addguardian // Implement similarly
 };
